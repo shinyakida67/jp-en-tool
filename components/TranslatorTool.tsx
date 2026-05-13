@@ -5,7 +5,7 @@ type ToneId = "internal" | "internal-formal" | "client";
 type Phrase = { jp: string; reading: string; en: string; tone: ToneId };
 type CustomPhrase = Phrase & { id: string; category: string; createdAt: number };
 
-// ── Responsive hook ───────────────────────────────────────────────
+// ── Hooks ─────────────────────────────────────────────────────────
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -16,6 +16,28 @@ function useIsMobile() {
     return () => window.removeEventListener("resize", check);
   }, []);
   return isMobile;
+}
+
+// ── Sheets API helpers ────────────────────────────────────────────
+
+async function sheetsGet(action: string, user?: string) {
+  const url = `/api/sheets?action=${action}${user ? `&user=${encodeURIComponent(user)}` : ""}`;
+  const res = await fetch(url);
+  return res.json();
+}
+
+async function sheetsPost(action: string, body: object) {
+  const res = await fetch(`/api/sheets?action=${action}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function sheetsDelete(action: string, body: object) {
+  const res = await fetch(`/api/sheets?action=${action}`, {
+    method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  return res.json();
 }
 
 // ── Data ──────────────────────────────────────────────────────────
@@ -115,16 +137,93 @@ Return ONLY this JSON, no markdown:
 {"polished":"<polished text>","changes":"<English explanation of each change, one per line. If nothing changed, say so.>"}`;
 }
 
-// ── API ───────────────────────────────────────────────────────────
+// ── Gemini API ────────────────────────────────────────────────────
 
 async function callAPI(system: string, message: string): Promise<string> {
   const res = await fetch("/api/translate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, message }),
   });
   const data = await res.json();
   return data.text || "";
+}
+
+// ── User Picker ───────────────────────────────────────────────────
+
+function UserPicker({ onSelect }: { onSelect: (name: string) => void }) {
+  const [input, setInput]         = useState("");
+  const [users, setUsers]         = useState<string[]>([]);
+  const [showDrop, setShowDrop]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [loadingUsers, setLoading] = useState(true);
+
+  useEffect(() => {
+    sheetsGet("users")
+      .then(d => { setUsers(d.users || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered    = input.trim() ? users.filter(u => u.toLowerCase().includes(input.toLowerCase())) : users;
+  const exactMatch  = users.map(u => u.toLowerCase()).includes(input.trim().toLowerCase());
+  const isNew       = input.trim() && !exactMatch;
+
+  const select = async (name: string) => {
+    setSaving(true);
+    try {
+      await sheetsPost("add-user", { name });
+      localStorage.setItem("baymax-user", name);
+      onSelect(name);
+    } catch { setSaving(false); }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 24, padding: "0 1rem" }}>
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 14, color: "#aaa", marginBottom: 6 }}>Welcome to Baymax</p>
+        <h2 style={{ fontSize: 22, fontWeight: 500 }}>Who are you?</h2>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 300, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ position: "relative" }}>
+          <input
+            value={input}
+            onChange={e => { setInput(e.target.value); setShowDrop(true); }}
+            onFocus={() => setShowDrop(true)}
+            onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+            placeholder={loadingUsers ? "Loading…" : "Type your name…"}
+            disabled={loadingUsers || saving}
+            style={{ fontSize: 15, textAlign: "center" }}
+            autoFocus
+          />
+          {showDrop && filtered.length > 0 && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "0.5px solid #d0d0cc", borderRadius: 8, marginTop: 4, overflow: "hidden", zIndex: 10 }}>
+              {filtered.slice(0, 8).map(name => (
+                <button key={name} onMouseDown={() => select(name)} style={{ display: "block", width: "100%", textAlign: "center", padding: "10px 14px", fontSize: 14, border: "none", borderBottom: "0.5px solid #f0f0ec", borderRadius: 0 }}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {exactMatch && (
+          <button onClick={() => select(users.find(u => u.toLowerCase() === input.trim().toLowerCase())!)} disabled={saving} style={{ padding: "9px 20px", fontSize: 14, fontWeight: 500 }}>
+            {saving ? "Loading…" : "Continue"}
+          </button>
+        )}
+
+        {isNew && (
+          <button onClick={() => select(input.trim())} disabled={saving} style={{ padding: "9px 20px", fontSize: 14, fontWeight: 500 }}>
+            {saving ? "Setting up…" : `Join as "${input.trim()}"`}
+          </button>
+        )}
+      </div>
+
+      <p style={{ fontSize: 12, color: "#bbb", textAlign: "center", maxWidth: 260, lineHeight: 1.6 }}>
+        Select your name to load your data, or type a new name to join for the first time.
+      </p>
+    </div>
+  );
 }
 
 // ── Shared components ─────────────────────────────────────────────
@@ -231,10 +330,10 @@ function AddPhraseForm({ onAdd }: { onAdd: (p: CustomPhrase) => void }) {
       const system = `You are a Japanese language expert. Analyse the Japanese phrase and return ONLY this JSON with no markdown:
 {"reading":"<romanised reading>","en":"<English meaning and usage context, one sentence>","tone":"<one of: internal, internal-formal, client>","category":"<one of: openers, closers, requests, gratitude, apologies, confirmations, scheduling, followup>"}`;
       const raw = await callAPI(system, jp);
-      const p = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+      const p = JSON.parse(cleaned);
       setReading(p.reading || ""); setEn(p.en || "");
-      setTone((p.tone as ToneId) || "internal");
-      setCat(p.category || "openers");
+      setTone((p.tone as ToneId) || "internal"); setCat(p.category || "openers");
       setReady(true);
     } catch { setReady(true); }
     setLoading(false);
@@ -246,9 +345,7 @@ function AddPhraseForm({ onAdd }: { onAdd: (p: CustomPhrase) => void }) {
     setJp(""); setReading(""); setEn(""); setReady(false); setOpen(false);
   };
 
-  if (!open) return (
-    <button onClick={() => setOpen(true)} style={{ alignSelf: "flex-start", padding: "7px 16px", fontSize: 13 }}>+ Add phrase</button>
-  );
+  if (!open) return <button onClick={() => setOpen(true)} style={{ alignSelf: "flex-start", padding: "7px 16px", fontSize: 13 }}>+ Add phrase</button>;
 
   return (
     <div style={{ border: "0.5px solid #d0d0cc", borderRadius: 10, padding: 16, background: "#fafaf8", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -388,13 +485,9 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-          {sidebarItems.filter(Boolean).map((item) => {
+          {sidebarItems.filter(Boolean).map(item => {
             const i = item as { id: string; label: string };
-            return (
-              <button key={i.id} onClick={() => setCategory(i.id)} style={{ padding: "6px 14px", fontSize: 13, borderRadius: 20, whiteSpace: "nowrap", fontWeight: category === i.id ? 500 : 400, background: category === i.id ? "#f0f0ec" : "transparent", color: category === i.id ? "#1a1a1a" : "#888", border: "0.5px solid #d0d0cc", flexShrink: 0 }}>
-                {i.label}
-              </button>
-            );
+            return <button key={i.id} onClick={() => setCategory(i.id)} style={{ padding: "6px 14px", fontSize: 13, borderRadius: 20, whiteSpace: "nowrap", fontWeight: category === i.id ? 500 : 400, background: category === i.id ? "#f0f0ec" : "transparent", color: category === i.id ? "#1a1a1a" : "#888", border: "0.5px solid #d0d0cc", flexShrink: 0 }}>{i.label}</button>;
           })}
         </div>
         {content}
@@ -535,48 +628,73 @@ function PolisherTab() {
 
 export default function TranslatorTool() {
   const isMobile = useIsMobile();
-  const [tab, setTab] = useState("translate");
-  const [favourites, setFavourites] = useState<Set<string>>(new Set());
-  const [customPhrases, setCustom]  = useState<CustomPhrase[]>([]);
+  const [tab, setTab]           = useState("translate");
+  const [userName, setUserName] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [favourites, setFavourites]   = useState<Set<string>>(new Set());
+  const [customPhrases, setCustom]    = useState<CustomPhrase[]>([]);
+
+  const loadUserData = async (name: string) => {
+    setDataLoading(true);
+    try {
+      const [phrasesRes, favsRes] = await Promise.all([
+        sheetsGet("phrases", name),
+        sheetsGet("favourites", name),
+      ]);
+      setCustom(phrasesRes.phrases || []);
+      setFavourites(new Set(favsRes.favourites || []));
+    } catch {}
+    setDataLoading(false);
+  };
 
   useEffect(() => {
-    try {
-      const favs = localStorage.getItem("jp-tool-favourites");
-      if (favs) setFavourites(new Set(JSON.parse(favs)));
-      const customs = localStorage.getItem("jp-tool-custom-phrases");
-      if (customs) setCustom(JSON.parse(customs));
-    } catch {}
+    const saved = localStorage.getItem("baymax-user");
+    if (saved) { setUserName(saved); loadUserData(saved); }
+    else setDataLoading(false);
   }, []);
 
-  const toggleFav = (jp: string) => {
-    setFavourites(prev => {
-      const next = new Set(prev);
-      next.has(jp) ? next.delete(jp) : next.add(jp);
-      localStorage.setItem("jp-tool-favourites", JSON.stringify([...next]));
-      return next;
-    });
+  const handleUserSelect = (name: string) => { setUserName(name); loadUserData(name); };
+
+  const switchUser = () => {
+    localStorage.removeItem("baymax-user");
+    setUserName(null); setCustom([]); setFavourites(new Set());
   };
 
-  const addPhrase = (p: CustomPhrase) => {
-    setCustom(prev => {
-      const next = [...prev, p];
-      localStorage.setItem("jp-tool-custom-phrases", JSON.stringify(next));
-      return next;
-    });
+  const toggleFav = async (jp: string) => {
+    if (!userName) return;
+    const isFav = favourites.has(jp);
+    setFavourites(prev => { const next = new Set(prev); isFav ? next.delete(jp) : next.add(jp); return next; });
+    if (isFav) await sheetsDelete("delete-favourite", { user_name: userName, jp });
+    else await sheetsPost("add-favourite", { user_name: userName, jp });
   };
 
-  const deletePhrase = (id: string) => {
-    setCustom(prev => {
-      const next = prev.filter(p => p.id !== id);
-      localStorage.setItem("jp-tool-custom-phrases", JSON.stringify(next));
-      return next;
-    });
+  const addPhrase = async (p: CustomPhrase) => {
+    if (!userName) return;
+    setCustom(prev => [...prev, p]);
+    await sheetsPost("add-phrase", { user_name: userName, jp: p.jp, reading: p.reading, en: p.en, tone: p.tone, category: p.category, id: p.id });
   };
+
+  const deletePhrase = async (id: string) => {
+    if (!userName) return;
+    setCustom(prev => prev.filter(p => p.id !== id));
+    await sheetsDelete("delete-phrase", { user_name: userName, id });
+  };
+
+  if (dataLoading) return <div style={{ textAlign: "center", padding: "4rem", color: "#aaa", fontSize: 14 }}>Loading…</div>;
+  if (!userName)   return <UserPicker onSelect={handleUserSelect} />;
 
   const tabs = [["translate", "Translator"], ["polish", "Paragraph polisher"], ["glossary", "Glossary"]];
 
   return (
     <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: "#aaa" }}>
+          {userName} ·{" "}
+          <button onClick={switchUser} style={{ border: "none", background: "transparent", color: "#aaa", fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0 }}>
+            Switch
+          </button>
+        </span>
+      </div>
       <div style={{ display: "flex", borderBottom: "0.5px solid #d0d0cc", marginBottom: "1.5rem", overflowX: isMobile ? "auto" : undefined }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 18px", fontSize: 14, fontWeight: tab === id ? 500 : 400, background: "transparent", border: "none", borderBottom: tab === id ? "2px solid #1a1a1a" : "2px solid transparent", borderRadius: 0, color: tab === id ? "#1a1a1a" : "#888", marginBottom: -1, whiteSpace: "nowrap" }}>
@@ -585,7 +703,7 @@ export default function TranslatorTool() {
         ))}
       </div>
       {tab === "translate" ? <TranslatorTab /> :
-       tab === "polish"    ? <PolisherTab /> :
+       tab === "polish"    ? <PolisherTab />    :
        <GlossaryTab favourites={favourites} customPhrases={customPhrases} toggleFav={toggleFav} addPhrase={addPhrase} deletePhrase={deletePhrase} />}
     </div>
   );
