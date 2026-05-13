@@ -4,11 +4,19 @@ import { google } from "googleapis";
 const ID = process.env.GOOGLE_SHEETS_ID!;
 
 function getSheets() {
-  const auth = new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+  let email: string;
+  let key: string;
+
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    email = creds.client_email;
+    key = creds.private_key;
+  } else {
+    email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "";
+    key = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+  }
+
+  const auth = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/spreadsheets"] });
   return google.sheets({ version: "v4", auth });
 }
 
