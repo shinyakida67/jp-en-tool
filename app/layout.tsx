@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EN ↔ JP Translator & Polisher",
-  description: "English–Japanese translation and paragraph polishing tool",
+  title: "Baymax",
+  description: "English–Japanese translation, paragraph polishing, and business phrase reference for workplace communication.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

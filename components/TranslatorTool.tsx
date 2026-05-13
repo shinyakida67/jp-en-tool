@@ -296,69 +296,94 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   addPhrase: (p: CustomPhrase) => void;
   deletePhrase: (id: string) => void;
 }) {
-  const [filter, setFilter] = useState<FilterId>("all");
+  const [tone, setTone]         = useState<ToneId | "all">("all");
+  const [category, setCategory] = useState<string>("all");
 
-  const filterOptions: { id: FilterId; label: string }[] = [
-    { id: "all",        label: "All" },
-    ...TONES.map(t => ({ id: t.id as FilterId, label: t.label })),
-    { id: "favourites", label: "★ Favourites" },
+  const sidebarItems: ({ id: string; label: string } | null)[] = [
+    { id: "all",        label: "All phrases" },
+    { id: "favourites", label: "★  Favourites" },
     { id: "my-phrases", label: "My phrases" },
+    null,
+    ...GLOSSARY.map(c => ({ id: c.id, label: c.name })),
   ];
 
-  const matches = (p: Phrase & { id?: string }): boolean => {
-    if (filter === "favourites") return favourites.has(p.jp);
-    if (filter === "my-phrases") return !!p.id;
-    if (filter === "all")        return true;
-    return p.tone === filter;
-  };
+  const toneFilters = [
+    { id: "all" as const, label: "All tones" },
+    ...TONES.map(t => ({ id: t.id, label: t.label })),
+  ];
 
-  const myPhrases = customPhrases.filter(p => matches(p));
-  const showMySection = (filter === "all" || filter === "my-phrases") && myPhrases.length > 0;
+  const matchesTone = (p: Phrase) => tone === "all" || p.tone === tone;
 
-  const toneStyle = (id: FilterId) => {
-    if (["all","favourites","my-phrases"].includes(id)) return filter === id ? { background: "#f0f0ec" } : {};
-    const s = TONE_STYLE[id as ToneId];
-    return filter === id ? { background: s.bg, color: s.color, borderColor: s.border } : {};
-  };
+  const allBuiltinAndCustom = (): (Phrase & { id?: string })[] => [
+    ...GLOSSARY.flatMap(c => c.phrases),
+    ...customPhrases,
+  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {filterOptions.map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)} style={{ padding: "6px 14px", fontSize: 13, fontWeight: filter === f.id ? 500 : 400, ...toneStyle(f.id) }}>
-            {f.label}
-          </button>
-        ))}
+    <div style={{ display: "flex", gap: 0, minHeight: 480 }}>
+
+      <div style={{ width: 170, flexShrink: 0, borderRight: "0.5px solid #e5e5e0", paddingRight: 6, paddingTop: 2 }}>
+        {sidebarItems.map((item, i) =>
+          !item
+            ? <div key={i} style={{ height: "0.5px", background: "#e5e5e0", margin: "8px 6px" }} />
+            : <button key={item.id} onClick={() => setCategory(item.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", borderRadius: 8, fontSize: 13, fontWeight: category === item.id ? 500 : 400, background: category === item.id ? "#f0f0ec" : "transparent", color: category === item.id ? "#1a1a1a" : "#888", border: "none", cursor: "pointer", marginBottom: 2 }}>
+                {item.label}
+              </button>
+        )}
       </div>
 
-      <AddPhraseForm onAdd={addPhrase} />
+      <div style={{ flex: 1, paddingLeft: 20, display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
 
-      {showMySection && (
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>My phrases</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {myPhrases.map(p => <PhraseCard key={p.id} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={deletePhrase} />)}
-          </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {toneFilters.map(f => (
+            <button key={f.id} onClick={() => setTone(f.id)} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 20, fontWeight: tone === f.id ? 500 : 400, background: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].bg : tone === f.id ? "#f0f0ec" : "transparent", color: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].color : undefined, borderColor: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].border : undefined }}>
+              {f.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {filter !== "my-phrases" && GLOSSARY.map(cat => {
-        const builtin = cat.phrases.filter(p => matches(p));
-        const custom  = customPhrases.filter(p => p.category === cat.id && matches(p));
-        const phrases = [...builtin, ...custom];
-        if (!phrases.length) return null;
-        return (
-          <div key={cat.id}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>{cat.name}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {phrases.map((p, i) => {
-                const cp = p as CustomPhrase;
-                return <PhraseCard key={cp.id || i} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />;
-              })}
+        <AddPhraseForm onAdd={addPhrase} />
+
+        {category === "favourites" && (() => {
+          const phrases = allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesTone(p));
+          return phrases.length
+            ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={true} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}</div>
+            : <p style={{ fontSize: 13, color: "#aaa" }}>No favourites yet — click ★ on any phrase to save it here.</p>;
+        })()}
+
+        {(category === "all" || category === "my-phrases") && (() => {
+          const phrases = customPhrases.filter(p => matchesTone(p));
+          if (!phrases.length) return null;
+          return (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>My phrases</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {phrases.map(p => <PhraseCard key={p.id} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={deletePhrase} />)}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })()}
+
+        {category !== "favourites" && category !== "my-phrases" && (() => {
+          const cats = category === "all" ? GLOSSARY : GLOSSARY.filter(c => c.id === category);
+          return cats.map(cat => {
+            const phrases = [
+              ...cat.phrases.filter(matchesTone),
+              ...customPhrases.filter(p => p.category === cat.id && matchesTone(p)),
+            ];
+            if (!phrases.length) return null;
+            return (
+              <div key={cat.id}>
+                {category === "all" && <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>{cat.name}</p>}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}
+                </div>
+              </div>
+            );
+          });
+        })()}
+
+      </div>
     </div>
   );
 }
