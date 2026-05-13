@@ -2,9 +2,21 @@
 import { useState, useEffect } from "react";
 
 type ToneId = "internal" | "internal-formal" | "client";
-type FilterId = ToneId | "all" | "favourites" | "my-phrases";
 type Phrase = { jp: string; reading: string; en: string; tone: ToneId };
 type CustomPhrase = Phrase & { id: string; category: string; createdAt: number };
+
+// ── Responsive hook ───────────────────────────────────────────────
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
 
 // ── Data ──────────────────────────────────────────────────────────
 
@@ -143,11 +155,12 @@ function ToneSelector({ tone, setTone }: { tone: ToneId; setTone: (t: ToneId) =>
 }
 
 function SuggestedPhrases({ tone }: { tone: ToneId }) {
+  const isMobile = useIsMobile();
   const { opener, closer } = SUGGESTED[tone];
   return (
     <div style={{ marginTop: 4, borderTop: "0.5px solid #e5e5e0", paddingTop: 16 }}>
       <p style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Suggested phrases for this tone</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
         {[{ label: "Opener", phrase: opener }, { label: "Closer", phrase: closer }].map(({ label, phrase }) => (
           <div key={label} style={{ border: "0.5px solid #e5e5e0", borderRadius: 8, padding: "10px 12px", background: "#fafaf8" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -174,13 +187,13 @@ function PhraseCard({ phrase, isFav, onToggleFav, onDelete }: {
 }) {
   return (
     <div style={{ border: "0.5px solid #e5e5e0", borderRadius: 8, padding: "10px 14px", background: "#fafaf8", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15 }}>{phrase.jp}</span>
-          <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: TONE_STYLE[phrase.tone].bg, color: TONE_STYLE[phrase.tone].color, border: `0.5px solid ${TONE_STYLE[phrase.tone].border}` }}>
+          <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: TONE_STYLE[phrase.tone].bg, color: TONE_STYLE[phrase.tone].color, border: `0.5px solid ${TONE_STYLE[phrase.tone].border}`, whiteSpace: "nowrap" }}>
             {TONES.find(t => t.id === phrase.tone)?.label}
           </span>
-          {phrase.id && <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: "#fff8e6", color: "#92400e", border: "0.5px solid #fde68a" }}>My phrase</span>}
+          {phrase.id && <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 20, background: "#fff8e6", color: "#92400e", border: "0.5px solid #fde68a", whiteSpace: "nowrap" }}>My phrase</span>}
         </div>
         <p style={{ fontSize: 12, color: "#888", marginBottom: 2 }}>{phrase.reading}</p>
         <p style={{ fontSize: 13, color: "#555" }}>{phrase.en}</p>
@@ -201,6 +214,7 @@ function PhraseCard({ phrase, isFav, onToggleFav, onDelete }: {
 // ── Add Phrase Form ───────────────────────────────────────────────
 
 function AddPhraseForm({ onAdd }: { onAdd: (p: CustomPhrase) => void }) {
+  const isMobile = useIsMobile();
   const [open, setOpen]       = useState(false);
   const [jp, setJp]           = useState("");
   const [reading, setReading] = useState("");
@@ -242,17 +256,15 @@ function AddPhraseForm({ onAdd }: { onAdd: (p: CustomPhrase) => void }) {
         <p style={{ fontSize: 14, fontWeight: 500 }}>Add a phrase</p>
         <button onClick={() => setOpen(false)} style={{ border: "none", background: "transparent", fontSize: 18, color: "#888", lineHeight: 1 }}>✕</button>
       </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
         <input value={jp} onChange={e => setJp(e.target.value)} placeholder="Paste Japanese phrase…" style={{ fontSize: 15, flex: 1 }} />
         <button onClick={suggest} disabled={loading || !jp.trim()} style={{ padding: "8px 14px", fontSize: 13, whiteSpace: "nowrap" }}>
           {loading ? "Analysing…" : "Suggest →"}
         </button>
       </div>
-
       {ready && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
             <div>
               <p style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Reading</p>
               <input value={reading} onChange={e => setReading(e.target.value)} placeholder="Romanised reading" />
@@ -296,6 +308,7 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   addPhrase: (p: CustomPhrase) => void;
   deletePhrase: (id: string) => void;
 }) {
+  const isMobile = useIsMobile();
   const [tone, setTone]         = useState<ToneId | "all">("all");
   const [category, setCategory] = useState<string>("all");
 
@@ -313,15 +326,84 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   ];
 
   const matchesTone = (p: Phrase) => tone === "all" || p.tone === tone;
-
   const allBuiltinAndCustom = (): (Phrase & { id?: string })[] => [
     ...GLOSSARY.flatMap(c => c.phrases),
     ...customPhrases,
   ];
 
+  const content = (
+    <div style={{ flex: 1, paddingLeft: isMobile ? 0 : 20, display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {toneFilters.map(f => (
+          <button key={f.id} onClick={() => setTone(f.id)} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 20, fontWeight: tone === f.id ? 500 : 400, background: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].bg : tone === f.id ? "#f0f0ec" : "transparent", color: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].color : undefined, borderColor: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].border : undefined }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <AddPhraseForm onAdd={addPhrase} />
+
+      {category === "favourites" && (() => {
+        const phrases = allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesTone(p));
+        return phrases.length
+          ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={true} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}</div>
+          : <p style={{ fontSize: 13, color: "#aaa" }}>No favourites yet — click ★ on any phrase to save it here.</p>;
+      })()}
+
+      {(category === "all" || category === "my-phrases") && (() => {
+        const phrases = customPhrases.filter(p => matchesTone(p));
+        if (!phrases.length) return null;
+        return (
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>My phrases</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {phrases.map(p => <PhraseCard key={p.id} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={deletePhrase} />)}
+            </div>
+          </div>
+        );
+      })()}
+
+      {category !== "favourites" && category !== "my-phrases" && (() => {
+        const cats = category === "all" ? GLOSSARY : GLOSSARY.filter(c => c.id === category);
+        return cats.map(cat => {
+          const phrases = [
+            ...cat.phrases.filter(matchesTone),
+            ...customPhrases.filter(p => p.category === cat.id && matchesTone(p)),
+          ];
+          if (!phrases.length) return null;
+          return (
+            <div key={cat.id}>
+              {category === "all" && <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>{cat.name}</p>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}
+              </div>
+            </div>
+          );
+        });
+      })()}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+          {sidebarItems.filter(Boolean).map((item) => {
+            const i = item as { id: string; label: string };
+            return (
+              <button key={i.id} onClick={() => setCategory(i.id)} style={{ padding: "6px 14px", fontSize: 13, borderRadius: 20, whiteSpace: "nowrap", fontWeight: category === i.id ? 500 : 400, background: category === i.id ? "#f0f0ec" : "transparent", color: category === i.id ? "#1a1a1a" : "#888", border: "0.5px solid #d0d0cc", flexShrink: 0 }}>
+                {i.label}
+              </button>
+            );
+          })}
+        </div>
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", gap: 0, minHeight: 480 }}>
-
       <div style={{ width: 170, flexShrink: 0, borderRight: "0.5px solid #e5e5e0", paddingRight: 6, paddingTop: 2 }}>
         {sidebarItems.map((item, i) =>
           !item
@@ -331,59 +413,7 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
               </button>
         )}
       </div>
-
-      <div style={{ flex: 1, paddingLeft: 20, display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
-
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {toneFilters.map(f => (
-            <button key={f.id} onClick={() => setTone(f.id)} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 20, fontWeight: tone === f.id ? 500 : 400, background: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].bg : tone === f.id ? "#f0f0ec" : "transparent", color: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].color : undefined, borderColor: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].border : undefined }}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        <AddPhraseForm onAdd={addPhrase} />
-
-        {category === "favourites" && (() => {
-          const phrases = allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesTone(p));
-          return phrases.length
-            ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={true} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}</div>
-            : <p style={{ fontSize: 13, color: "#aaa" }}>No favourites yet — click ★ on any phrase to save it here.</p>;
-        })()}
-
-        {(category === "all" || category === "my-phrases") && (() => {
-          const phrases = customPhrases.filter(p => matchesTone(p));
-          if (!phrases.length) return null;
-          return (
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>My phrases</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {phrases.map(p => <PhraseCard key={p.id} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={deletePhrase} />)}
-              </div>
-            </div>
-          );
-        })()}
-
-        {category !== "favourites" && category !== "my-phrases" && (() => {
-          const cats = category === "all" ? GLOSSARY : GLOSSARY.filter(c => c.id === category);
-          return cats.map(cat => {
-            const phrases = [
-              ...cat.phrases.filter(matchesTone),
-              ...customPhrases.filter(p => p.category === cat.id && matchesTone(p)),
-            ];
-            if (!phrases.length) return null;
-            return (
-              <div key={cat.id}>
-                {category === "all" && <p style={{ fontSize: 13, fontWeight: 500, color: "#444", marginBottom: 10, paddingBottom: 6, borderBottom: "0.5px solid #e5e5e0" }}>{cat.name}</p>}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={favourites.has(p.jp)} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}
-                </div>
-              </div>
-            );
-          });
-        })()}
-
-      </div>
+      {content}
     </div>
   );
 }
@@ -391,6 +421,7 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
 // ── Translator Tab ────────────────────────────────────────────────
 
 function TranslatorTab() {
+  const isMobile = useIsMobile();
   const [dir, setDir]     = useState("en-jp");
   const [tone, setTone]   = useState<ToneId>("internal");
   const [input, setInput] = useState("");
@@ -415,17 +446,17 @@ function TranslatorTab() {
         <span style={{ fontSize: 14, fontWeight: 500 }}>{to}</span>
       </div>
       <ToneSelector tone={tone} setTone={setTone} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 12, color: "#888" }}>{from}</p>
-          <textarea value={input} onChange={e => setInput(e.target.value)} placeholder={`Enter ${from} text…`} style={{ height: 180 }} />
+          <textarea value={input} onChange={e => setInput(e.target.value)} placeholder={`Enter ${from} text…`} style={{ height: isMobile ? 120 : 180 }} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <p style={{ fontSize: 12, color: "#888" }}>{to}</p>
             {output && <CopyBtn text={output} />}
           </div>
-          <div style={{ height: 180, border: "0.5px solid #d0d0cc", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.6, color: output ? undefined : "#aaa", overflow: "auto", whiteSpace: "pre-wrap", background: "#f5f5f2" }}>
+          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid #d0d0cc", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.6, color: output ? undefined : "#aaa", overflow: "auto", whiteSpace: "pre-wrap", background: "#f5f5f2" }}>
             {loading ? "Translating…" : output || "Translation will appear here…"}
           </div>
         </div>
@@ -503,9 +534,10 @@ function PolisherTab() {
 // ── Main ──────────────────────────────────────────────────────────
 
 export default function TranslatorTool() {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("translate");
-  const [favourites, setFavourites]     = useState<Set<string>>(new Set());
-  const [customPhrases, setCustom]      = useState<CustomPhrase[]>([]);
+  const [favourites, setFavourites] = useState<Set<string>>(new Set());
+  const [customPhrases, setCustom]  = useState<CustomPhrase[]>([]);
 
   useEffect(() => {
     try {
@@ -545,9 +577,9 @@ export default function TranslatorTool() {
 
   return (
     <div>
-      <div style={{ display: "flex", borderBottom: "0.5px solid #d0d0cc", marginBottom: "1.5rem" }}>
+      <div style={{ display: "flex", borderBottom: "0.5px solid #d0d0cc", marginBottom: "1.5rem", overflowX: isMobile ? "auto" : undefined }}>
         {tabs.map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 18px", fontSize: 14, fontWeight: tab === id ? 500 : 400, background: "transparent", border: "none", borderBottom: tab === id ? "2px solid #1a1a1a" : "2px solid transparent", borderRadius: 0, color: tab === id ? "#1a1a1a" : "#888", marginBottom: -1 }}>
+          <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 18px", fontSize: 14, fontWeight: tab === id ? 500 : 400, background: "transparent", border: "none", borderBottom: tab === id ? "2px solid #1a1a1a" : "2px solid transparent", borderRadius: 0, color: tab === id ? "#1a1a1a" : "#888", marginBottom: -1, whiteSpace: "nowrap" }}>
             {label}
           </button>
         ))}
