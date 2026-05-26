@@ -120,3 +120,8 @@ input:focus,
 select:focus {
   border-color: var(--text-muted);
 }
+
+@keyframes baymax-waddle {
+  0%, 100% { transform: translateY(0px)  rotate(-4deg); }
+  50%       { transform: translateY(-6px) rotate(4deg);  }
+}

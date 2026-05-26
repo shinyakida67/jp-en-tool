@@ -524,6 +524,50 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   );
 }
 
+// ── Baymax Loader ─────────────────────────────────────────────────
+
+function BaymaxLoader() {
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+      {[0, 1, 2, 3, 4].map(i => (
+        <div
+          key={i}
+          style={{
+            width: 26,
+            height: 18,
+            borderRadius: "50% 50% 44% 44%",
+            background: "#ffffff",
+            border: "0.5px solid var(--border)",
+            position: "relative",
+            flexShrink: 0,
+            animation: "baymax-waddle 0.6s ease-in-out infinite",
+            animationDelay: `${i * 0.1}s`,
+            animationFillMode: "backwards",
+          }}
+        >
+          <svg
+            viewBox="0 0 26 18"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+          >
+            {/* Eyes — just above centre, slightly wide apart */}
+            <circle cx="8"  cy="7" r="1.5" fill="#1a1a1a" />
+            <circle cx="18" cy="7" r="1.5" fill="#1a1a1a" />
+            {/* Faint smile connecting inner edges of eyes */}
+            <path
+              d="M 9.5 8.5 Q 13 11 16.5 8.5"
+              fill="none"
+              stroke="#1a1a1a"
+              strokeWidth="0.8"
+              strokeLinecap="round"
+              opacity="0.35"
+            />
+          </svg>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Translator Tab ────────────────────────────────────────────────
 
 function TranslatorTab() {
@@ -562,8 +606,8 @@ function TranslatorTab() {
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{to}</p>
             {output && <CopyBtn text={output} />}
           </div>
-          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.6, color: output ? "var(--text-primary)" : "var(--text-faint)", overflow: "auto", whiteSpace: "pre-wrap", background: "var(--bg-secondary)" }}>
-            {loading ? "Translating…" : output || "Translation will appear here…"}
+          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.6, color: output ? "var(--text-primary)" : "var(--text-faint)", overflow: "auto", whiteSpace: loading ? undefined : "pre-wrap", background: "var(--bg-secondary)", display: loading ? "flex" : undefined, alignItems: loading ? "center" : undefined, justifyContent: loading ? "center" : undefined }}>
+            {loading ? <BaymaxLoader /> : output || "Translation will appear here…"}
           </div>
         </div>
       </div>
@@ -613,8 +657,8 @@ function PolisherTab() {
               <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Polished Japanese</p>
               {polished && <CopyBtn text={polished} />}
             </div>
-            <div style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "12px 16px", fontSize: 15, lineHeight: 1.7, background: "var(--bg-secondary)", whiteSpace: "pre-wrap", minHeight: 80, color: polished ? "var(--text-primary)" : "var(--text-faint)" }}>
-              {loading && !polished ? "Polishing…" : polished}
+            <div style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "12px 16px", fontSize: 15, lineHeight: 1.7, background: "var(--bg-secondary)", whiteSpace: loading ? undefined : "pre-wrap", minHeight: 80, color: polished ? "var(--text-primary)" : "var(--text-faint)", display: loading && !polished ? "flex" : undefined, alignItems: loading && !polished ? "center" : undefined, justifyContent: loading && !polished ? "center" : undefined }}>
+              {loading && !polished ? <BaymaxLoader /> : polished}
             </div>
           </div>
           {changes && (
