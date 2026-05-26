@@ -40,8 +40,8 @@ Desktop uses a sidebar (Option A), mobile uses pills (Option B).
 Add English polishing support with auto language detection so the polisher works on both JP and EN text.
 - Add tab descriptors to clarify the difference between tools: *"convert between languages"* (Translator) vs *"refine what you've written"* (Polisher).
 
-### Hiragana / romaji readings for translations
-Show furigana or romaji readings alongside Japanese output in the Translator to help non-native speakers pronounce results.
+### ~~Hiragana / romaji readings for translations~~
+✅ Done — EN→JP output shows hiragana and romaji with toggle pills (Variant 3).
 
 ### Glossary categories — expand beyond email
 Current categories are email-centric. Worth adding scenarios for:
@@ -51,9 +51,6 @@ Current categories are email-centric. Worth adding scenarios for:
 - Introductions
 - Giving / receiving feedback
 - Problem & escalation scenarios
-
-### Baymax waddling loader
-Replace plain *"Translating…"* / *"Polishing…"* text with a five-frame waddling Baymax animation. Implement next time a new feature is added rather than as a standalone change.
 
 ### Shared database upgrade
 Replace Google Sheets with Supabase or Firebase if team-wide shared custom phrases are needed in future.

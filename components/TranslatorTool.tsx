@@ -135,18 +135,21 @@ const CATEGORY_OPTIONS = GLOSSARY.map(c => ({ id: c.id, name: c.name }));
 function tonePrompt(tone: ToneId, dir: string): string {
   const jp = dir === "en-jp";
   const map: Record<ToneId, string> = {
-    "internal":        jp ? "Translate the following English text into Japanese using casual, friendly, internal team language."                              : "Translate the following Japanese text into English using casual, friendly, internal team language.",
-    "internal-formal": jp ? "Translate the following English text into Japanese using polite internal business language (丁寧語 level, professional but not overly stiff)." : "Translate the following Japanese text into English using polite, professional internal business language.",
-    "client":          jp ? "Translate the following English text into Japanese using formal, respectful, client-facing business language (敬語/keigo)."     : "Translate the following Japanese text into English using formal, polished, client-facing business language.",
+    "internal":        jp ? "Translate the following English text into Japanese using natural, direct internal team language. Be clear and collegial — avoid vague or overly casual phrasing. Short messages should still feel considered and purposeful, not throwaway."
+                          : "Translate the following Japanese text into English using natural, direct internal team language. Keep it collegial and clear — avoid vague or overly casual phrasing.",
+    "internal-formal": jp ? "Translate the following English text into Japanese using polite but approachable internal business language (丁寧語). A clear step above casual — professional enough for a respected colleague or senior — but conversational enough that it doesn't feel stiff or distant."
+                          : "Translate the following Japanese text into English using polite but approachable professional language. A clear step above casual, but conversational enough that it doesn't feel stiff. Think: a respected colleague you know well.",
+    "client":          jp ? "Translate the following English text into Japanese using formal, respectful client-facing business language (敬語/keigo). Aim for a polished, modern business tone — professional and considerate, but not unnecessarily stiff or archaic."
+                          : "Translate the following Japanese text into English using formal, polished client-facing business language. Keep it professional and respectful, but let it sound natural — avoid overly corporate or stilted phrasing where a cleaner expression works just as well.",
   };
   return map[tone];
 }
 
 function polishSystemPrompt(tone: ToneId): string {
   const inst: Record<ToneId, string> = {
-    "internal":        "casual, friendly internal team language. Opener if email: 「お疲れ様です」. Closer: 「よろしくお願いします」.",
-    "internal-formal": "polite internal business language (丁寧語). Opener if email: 「お疲れ様です」. Closer: 「よろしくお願いいたします」.",
-    "client":          "formal keigo (敬語) for client-facing communication. Opener if email: 「お世話になっております」. Closer: 「何卒よろしくお願い申し上げます」.",
+    "internal":        "natural, direct internal team language — clear and collegial, not vague or slangy. Short messages should feel considered and purposeful. Opener if email: 「お疲れ様です」. Closer: 「よろしくお願いします」.",
+    "internal-formal": "polite but approachable internal business language (丁寧語) — a clear step above casual, but conversational enough that it doesn't feel stiff or distant. Write as you would to a respected colleague you know well. Opener if email: 「お疲れ様です」. Closer: 「よろしくお願いいたします」.",
+    "client":          "formal keigo (敬語) for client-facing communication, with a modern, natural business tone. Polished and respectful, but not unnecessarily archaic or stiff — allow for warmth where it fits naturally. Opener if email: 「お世話になっております」. Closer: 「何卒よろしくお願い申し上げます」.",
   };
   return `You are a Japanese language editor specialising in business communication. Tone: ${inst[tone]}
 Polish the given Japanese text for clarity, naturalness, and correctness while preserving the writer's intent. Ensure tone matches the level. If it looks like an email and is missing a standard opener or closer for the tone, add them.
@@ -572,27 +575,46 @@ function BaymaxLoader() {
 
 function TranslatorTab() {
   const isMobile = useIsMobile();
-  const [dir, setDir]     = useState("en-jp");
-  const [tone, setTone]   = useState<ToneId>("internal");
-  const [input, setInput] = useState("");
-  const [output, setOut]  = useState("");
+  const [dir, setDir]         = useState("en-jp");
+  const [tone, setTone]       = useState<ToneId>("internal");
+  const [input, setInput]     = useState("");
+  const [output, setOut]      = useState("");
+  const [hiragana, setHira]   = useState("");
+  const [romaji, setRoma]     = useState("");
+  const [showHira, setShowHira] = useState(true);
+  const [showRoma, setShowRoma] = useState(true);
   const [loading, setLoading] = useState(false);
-  const from = dir === "en-jp" ? "English" : "Japanese";
-  const to   = dir === "en-jp" ? "Japanese" : "English";
+  const isEnJp = dir === "en-jp";
+  const from = isEnJp ? "English" : "Japanese";
+  const to   = isEnJp ? "Japanese" : "English";
 
   const translate = async () => {
     if (!input.trim()) return;
-    setLoading(true); setOut("");
-    try { setOut(await callAPI(tonePrompt(tone, dir) + " Return only the translation, no explanations.", input)); }
-    catch { setOut("Something went wrong. Please try again."); }
+    setLoading(true); setOut(""); setHira(""); setRoma("");
+    try {
+      if (isEnJp) {
+        const prompt = tonePrompt(tone, dir) + ` Return ONLY this JSON, no markdown: {"translation":"<Japanese translation>","hiragana":"<full hiragana reading>","romaji":"<romanised reading>"}`;
+        const raw = await callAPI(prompt, input);
+        try {
+          const parsed = JSON.parse(raw.replace(/```json\n?|```\n?/g, "").trim());
+          setOut(parsed.translation || raw);
+          setHira(parsed.hiragana || "");
+          setRoma(parsed.romaji || "");
+        } catch { setOut(raw); }
+      } else {
+        setOut(await callAPI(tonePrompt(tone, dir) + " Return only the translation, no explanations.", input));
+      }
+    } catch { setOut("Something went wrong. Please try again."); }
     setLoading(false);
   };
+
+  const swap = () => { setDir(d => d === "en-jp" ? "jp-en" : "en-jp"); setInput(""); setOut(""); setHira(""); setRoma(""); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>{from}</span>
-        <button onClick={() => { setDir(d => d === "en-jp" ? "jp-en" : "en-jp"); setInput(""); setOut(""); }} style={{ padding: "5px 12px", fontSize: 13 }}>⇄ Swap</button>
+        <button onClick={swap} style={{ padding: "5px 12px", fontSize: 13 }}>⇄ Swap</button>
         <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>{to}</span>
       </div>
       <ToneSelector tone={tone} setTone={setTone} />
@@ -606,8 +628,20 @@ function TranslatorTab() {
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{to}</p>
             {output && <CopyBtn text={output} />}
           </div>
-          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.6, color: output ? "var(--text-primary)" : "var(--text-faint)", overflow: "auto", whiteSpace: loading ? undefined : "pre-wrap", background: "var(--bg-secondary)", display: loading ? "flex" : undefined, alignItems: loading ? "center" : undefined, justifyContent: loading ? "center" : undefined }}>
-            {loading ? <BaymaxLoader /> : output || "Translation will appear here…"}
+          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid var(--border)", borderRadius: 8, overflow: "auto", background: "var(--bg-secondary)", ...(loading ? { display: "flex", alignItems: "center", justifyContent: "center" } : { padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }) }}>
+            {loading ? <BaymaxLoader /> : !output ? (
+              <span style={{ fontSize: 14, color: "var(--text-faint)" }}>Translation will appear here…</span>
+            ) : (<>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>{output}</p>
+              {isEnJp && showHira && hiragana && <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--text-muted)" }}>{hiragana}</p>}
+              {isEnJp && showRoma && romaji   && <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--text-faint)", fontStyle: "italic" }}>{romaji}</p>}
+              {isEnJp && (hiragana || romaji) && (
+                <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                  {hiragana && <button onClick={() => setShowHira(h => !h)} style={{ fontSize: 11, padding: "2px 9px", borderRadius: 20, fontWeight: showHira ? 500 : 400, background: showHira ? "var(--bg-hover)" : "transparent", color: showHira ? "var(--text-primary)" : "var(--text-muted)" }}>Hiragana</button>}
+                  {romaji   && <button onClick={() => setShowRoma(r => !r)} style={{ fontSize: 11, padding: "2px 9px", borderRadius: 20, fontWeight: showRoma ? 500 : 400, background: showRoma ? "var(--bg-hover)" : "transparent", color: showRoma ? "var(--text-primary)" : "var(--text-muted)" }}>Romaji</button>}
+                </div>
+              )}
+            </>)}
           </div>
         </div>
       </div>
