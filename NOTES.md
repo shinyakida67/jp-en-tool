@@ -52,6 +52,33 @@ Current categories are email-centric. Worth adding scenarios for:
 - Giving / receiving feedback
 - Problem & escalation scenarios
 
+### Glossary search
+Text search across the phrase glossary — the current category/tone filters alone are becoming limiting as the glossary grows.
+
+**Where it lives**
+Text input at the top of the glossary content area, above the tone filter pills. Always visible.
+
+**What it searches**
+Three fields simultaneously, so users find a phrase no matter which side they remember:
+- Japanese text (kanji + kana)
+- Reading (romaji / hiragana)
+- English meaning
+
+Examples: `thank you`, `arigatou`, and `ありがとう` all surface 「ありがとうございます」.
+
+**How it interacts with existing filters**
+Search **stacks on top of** the existing tone and category filters rather than replacing them. e.g. "Email Closers" + "Client tone" + search "thank" all combine. Empty search = current behaviour.
+
+**Behaviour**
+- Real-time filtering as the user types (no Search button)
+- Small clear `✕` inside the input when there's text
+- In "All phrases" view, empty category sections collapse when search is active
+
+**Nice-to-have layers (skip in v1, add later if missed)**
+- Match highlighting — bold the matching substring in result cards
+- Fuzzy matching — typo-tolerant search (e.g. `arigato` matches `arigatou`)
+- Keyboard shortcut — `Cmd/Ctrl + K` to focus the search input
+
 ### Shared database upgrade
 Replace Google Sheets with Supabase or Firebase if team-wide shared custom phrases are needed in future.
 
