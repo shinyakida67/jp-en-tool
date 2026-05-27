@@ -424,6 +424,7 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   const isMobile = useIsMobile();
   const [tone, setTone]         = useState<ToneId | "all">("all");
   const [category, setCategory] = useState<string>("all");
+  const [search, setSearch]     = useState("");
 
   const sidebarItems: ({ id: string; label: string } | null)[] = [
     { id: "all",        label: "All phrases" },
@@ -439,13 +440,47 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
   ];
 
   const matchesTone = (p: Phrase) => tone === "all" || p.tone === tone;
+  const matchesSearch = (p: Phrase) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return p.jp.toLowerCase().includes(q) || p.reading.toLowerCase().includes(q) || p.en.toLowerCase().includes(q);
+  };
+  const matchesFilters = (p: Phrase) => matchesTone(p) && matchesSearch(p);
   const allBuiltinAndCustom = (): (Phrase & { id?: string })[] => [
     ...GLOSSARY.flatMap(c => c.phrases),
     ...customPhrases,
   ];
 
+  // Total visible phrases — used to show a "no results" message when search yields nothing
+  const totalVisible = (() => {
+    if (category === "favourites") return allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesFilters(p)).length;
+    if (category === "my-phrases") return customPhrases.filter(matchesFilters).length;
+    const cats = category === "all" ? GLOSSARY : GLOSSARY.filter(c => c.id === category);
+    const builtinHits = cats.reduce((n, c) => n + c.phrases.filter(matchesFilters).length, 0);
+    const customHits  = customPhrases.filter(p => (category === "all" || p.category === category) && matchesFilters(p)).length;
+    return builtinHits + customHits;
+  })();
+
   const content = (
     <div style={{ flex: 1, paddingLeft: isMobile ? 0 : 20, display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
+      <div style={{ position: "relative" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search phrases — Japanese, reading, or English…"
+          style={{ fontSize: 13, paddingRight: search ? 32 : 12 }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            aria-label="Clear search"
+            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "var(--text-faint)", fontSize: 14, padding: "2px 8px", borderRadius: 4 }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {toneFilters.map(f => (
           <button key={f.id} onClick={() => setTone(f.id)} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 20, fontWeight: tone === f.id ? 500 : 400, background: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].bg : tone === f.id ? "var(--bg-hover)" : "transparent", color: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].color : "var(--text-primary)", borderColor: tone === f.id && f.id !== "all" ? TONE_STYLE[f.id].border : "var(--border)" }}>
@@ -457,14 +492,14 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
       <AddPhraseForm onAdd={addPhrase} />
 
       {category === "favourites" && (() => {
-        const phrases = allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesTone(p));
-        return phrases.length
-          ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={true} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}</div>
-          : <p style={{ fontSize: 13, color: "var(--text-faint)" }}>No favourites yet — click ★ on any phrase to save it here.</p>;
+        const phrases = allBuiltinAndCustom().filter(p => favourites.has(p.jp) && matchesFilters(p));
+        if (phrases.length) return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{phrases.map((p, i) => { const cp = p as CustomPhrase; return <PhraseCard key={cp.id || i} phrase={p} isFav={true} onToggleFav={toggleFav} onDelete={cp.id ? deletePhrase : undefined} />; })}</div>;
+        if (search.trim()) return null;
+        return <p style={{ fontSize: 13, color: "var(--text-faint)" }}>No favourites yet — click ★ on any phrase to save it here.</p>;
       })()}
 
       {(category === "all" || category === "my-phrases") && (() => {
-        const phrases = customPhrases.filter(p => matchesTone(p));
+        const phrases = customPhrases.filter(matchesFilters);
         if (!phrases.length) return null;
         return (
           <div>
@@ -480,8 +515,8 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
         const cats = category === "all" ? GLOSSARY : GLOSSARY.filter(c => c.id === category);
         return cats.map(cat => {
           const phrases = [
-            ...cat.phrases.filter(matchesTone),
-            ...customPhrases.filter(p => p.category === cat.id && matchesTone(p)),
+            ...cat.phrases.filter(matchesFilters),
+            ...customPhrases.filter(p => p.category === cat.id && matchesFilters(p)),
           ];
           if (!phrases.length) return null;
           return (
@@ -494,6 +529,10 @@ function GlossaryTab({ favourites, customPhrases, toggleFav, addPhrase, deletePh
           );
         });
       })()}
+
+      {search.trim() && totalVisible === 0 && (
+        <p style={{ fontSize: 13, color: "var(--text-faint)" }}>No phrases match &ldquo;{search}&rdquo; in this view.</p>
+      )}
     </div>
   );
 
