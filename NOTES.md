@@ -60,7 +60,16 @@ Current categories are email-centric. Worth adding scenarios for:
 - Fuzzy matching — typo-tolerant search
 - Keyboard shortcut — `Cmd/Ctrl + K` to focus search
 
-### Translation notes (EN→JP)
+### ~~Translation notes (EN→JP)~~
+✅ Done — v1 (Option A) is live. Notes section appears below the output when there's something worth pointing out, with category pills (omitted / restructured / cultural / implicit) and one-line explanations. Returns empty array for straightforward translations so the section stays hidden.
+
+**Still backburner — flipped Option D**
+Toggle behaviour: shown by default, "Hide notes" link that persists in localStorage so power users can opt out.
+
+---
+
+**Original spec preserved below for reference**
+
 English and Japanese business communication have different conventions — direct translation often produces awkward or unnatural results. Surface this to the user so they understand why the Japanese output doesn't 1:1 map to the input.
 
 **Examples of phrases that don't translate naturally**

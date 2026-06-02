@@ -612,6 +612,8 @@ function BaymaxLoader() {
 
 // ── Translator Tab ────────────────────────────────────────────────
 
+type TranslationNote = { category: string; original: string; explanation: string };
+
 function TranslatorTab() {
   const isMobile = useIsMobile();
   const [dir, setDir]         = useState("en-jp");
@@ -620,6 +622,7 @@ function TranslatorTab() {
   const [output, setOut]      = useState("");
   const [hiragana, setHira]   = useState("");
   const [romaji, setRoma]     = useState("");
+  const [notes, setNotes]     = useState<TranslationNote[]>([]);
   const [showHira, setShowHira] = useState(true);
   const [showRoma, setShowRoma] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -629,16 +632,18 @@ function TranslatorTab() {
 
   const translate = async () => {
     if (!input.trim()) return;
-    setLoading(true); setOut(""); setHira(""); setRoma("");
+    setLoading(true); setOut(""); setHira(""); setRoma(""); setNotes([]);
     try {
       if (isEnJp) {
-        const prompt = tonePrompt(tone, dir) + ` Return ONLY this JSON, no markdown: {"translation":"<Japanese translation>","hiragana":"<full hiragana reading>","romaji":"<romanised reading>"}`;
+        const prompt = tonePrompt(tone, dir) + ` Return ONLY this JSON, no markdown: {"translation":"<Japanese translation>","hiragana":"<full hiragana reading>","romaji":"<romanised reading>","notes":[{"category":"<one of: omitted, restructured, cultural, implicit>","original":"<the English phrase or pattern>","explanation":"<one-sentence explanation in English>"}]}
+Use the notes array to flag English phrases or patterns that don't translate naturally to Japanese — e.g. greetings with no Japanese equivalent ("I hope this finds you well"), polite filler that's redundant in Japanese context ("just wanted to reach out", "thanks in advance" folded into a closer), restructured sentence patterns, or dropped pronouns (I, you, we). Categories: omitted (English phrase dropped because there's no equivalent), restructured (same meaning expressed differently), cultural (replaced with a Japanese-specific formula), implicit (meaning carried by context). Only include notes when there's something genuinely worth pointing out — return an empty array for straightforward 1:1 translations.`;
         const raw = await callAPI(prompt, input);
         try {
           const parsed = JSON.parse(raw.replace(/```json\n?|```\n?/g, "").trim());
           setOut(parsed.translation || raw);
           setHira(parsed.hiragana || "");
           setRoma(parsed.romaji || "");
+          setNotes(Array.isArray(parsed.notes) ? parsed.notes.filter((n: TranslationNote) => n && n.original && n.explanation) : []);
         } catch { setOut(raw); }
       } else {
         setOut(await callAPI(tonePrompt(tone, dir) + " Return only the translation, no explanations.", input));
@@ -647,7 +652,7 @@ function TranslatorTab() {
     setLoading(false);
   };
 
-  const swap = () => { setDir(d => d === "en-jp" ? "jp-en" : "en-jp"); setInput(""); setOut(""); setHira(""); setRoma(""); };
+  const swap = () => { setDir(d => d === "en-jp" ? "jp-en" : "en-jp"); setInput(""); setOut(""); setHira(""); setRoma(""); setNotes([]); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -687,6 +692,25 @@ function TranslatorTab() {
       <button onClick={translate} disabled={loading || !input.trim()} style={{ alignSelf: "flex-start", padding: "8px 20px", fontSize: 14, fontWeight: 500 }}>
         {loading ? "Translating…" : "Translate"}
       </button>
+      {notes.length > 0 && !loading && (
+        <div style={{ borderLeft: "2px solid var(--accent-blue)", paddingLeft: 14 }}>
+          <p style={{ fontSize: 12, color: "var(--accent-blue-text)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Translation notes</p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            {notes.map((n, i) => (
+              <li key={i} style={{ display: "flex", gap: 8, fontSize: 13, lineHeight: 1.65, color: "var(--text-secondary)" }}>
+                <span style={{ color: "var(--bullet-color)", flexShrink: 0, marginTop: 1 }}>•</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 20, background: "var(--bg-hover)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", border: "0.5px solid var(--border-light)" }}>{n.category}</span>
+                    <em style={{ color: "var(--text-primary)", fontStyle: "italic" }}>&ldquo;{n.original}&rdquo;</em>
+                  </div>
+                  <span>{n.explanation}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {output && !loading && <SuggestedPhrases tone={tone} />}
     </div>
   );
