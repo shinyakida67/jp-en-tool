@@ -60,6 +60,35 @@ Current categories are email-centric. Worth adding scenarios for:
 - Fuzzy matching — typo-tolerant search
 - Keyboard shortcut — `Cmd/Ctrl + K` to focus search
 
+### Translation notes (EN→JP)
+English and Japanese business communication have different conventions — direct translation often produces awkward or unnatural results. Surface this to the user so they understand why the Japanese output doesn't 1:1 map to the input.
+
+**Examples of phrases that don't translate naturally**
+- *"I hope this email finds you well"* — no Japanese equivalent; the opener 「お世話になっております」 already serves this role
+- *"I wanted to reach out about…"* — usually dropped; Japanese gets straight to the point
+- *"Thanks in advance"* — folded into the closer 「よろしくお願いいたします」
+- *"Sorry to bother you"* — restructured into 「お忙しいところ恐れ入りますが…」
+- Dropped pronouns (I, you, we) — implicit in Japanese context
+
+**Categories of notes**
+- **Dropped** — English phrase omitted because it has no Japanese equivalent
+- **Restructured** — same meaning, expressed completely differently
+- **Cultural substitution** — replaced with a Japanese-specific formula
+- **Implicit** — meaning carried by context (dropped pronouns, etc.)
+
+**v1 plan — Option A: always-shown notes section**
+A small "Translation notes" section appears below the Japanese output, only when there's something to say. Mirrors the Polisher's existing "Changes made" pattern for consistency. Each note is a one-liner with a category label, e.g.:
+> • *(omitted)* "I hope this email finds you well" — the opener 「お世話になっております」 already conveys this in Japanese
+> • *(folded)* "Thanks in advance" — handled by the closer 「よろしくお願いいたします」
+
+**Implementation**
+- Extend the EN→JP translate prompt to also return `notes: [{category, original, explanation}]` in the existing JSON
+- Render notes underneath the translation in the output box (or just below it, like the Polisher's changes block)
+- No notes returned → section hidden entirely
+
+**Backburner enhancement — flipped Option D**
+Once v1 is live, consider flipping toggle behaviour: notes shown by default, with a small "Hide notes" link that persists the preference in localStorage. So learners keep them visible, advanced users can opt out for a cleaner view.
+
 ### Shared database upgrade
 Replace Google Sheets with Supabase or Firebase if team-wide shared custom phrases are needed in future.
 
