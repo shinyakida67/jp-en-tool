@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 
 type ToneId = "internal" | "internal-formal" | "client";
 type Phrase = { jp: string; reading: string; en: string; tone: ToneId };
@@ -16,6 +16,20 @@ function useIsMobile() {
     return () => window.removeEventListener("resize", check);
   }, []);
   return isMobile;
+}
+
+function useAutoGrowTextarea(value: string, minHeight: number, maxHeight: number) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [height, setHeight] = useState(minHeight);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+    el.style.height = `${next}px`;
+    setHeight(next);
+  }, [value, minHeight, maxHeight]);
+  return [ref, height] as const;
 }
 
 // ── Sheets API helpers ────────────────────────────────────────────
@@ -629,6 +643,9 @@ function TranslatorTab() {
   const isEnJp = dir === "en-jp";
   const from = isEnJp ? "English" : "Japanese";
   const to   = isEnJp ? "Japanese" : "English";
+  const minH = isMobile ? 160 : 220;
+  const maxH = isMobile ? 360 : 480;
+  const [inputRef, inputHeight] = useAutoGrowTextarea(input, minH, maxH);
 
   const translate = async () => {
     if (!input.trim()) return;
@@ -665,14 +682,14 @@ Use the notes array to flag English phrases or patterns that don't translate nat
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{from}</p>
-          <textarea value={input} onChange={e => setInput(e.target.value)} placeholder={`Enter ${from} text…`} style={{ height: isMobile ? 120 : 180 }} />
+          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder={`Enter ${from} text…`} style={{ minHeight: minH, maxHeight: maxH, resize: "none", overflow: "auto" }} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{to}</p>
             {output && <CopyBtn text={output} />}
           </div>
-          <div style={{ height: isMobile ? 120 : 180, border: "0.5px solid var(--border)", borderRadius: 8, overflow: "auto", background: "var(--bg-secondary)", ...(loading ? { display: "flex", alignItems: "center", justifyContent: "center" } : { padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }) }}>
+          <div style={{ minHeight: inputHeight, maxHeight: maxH, border: "0.5px solid var(--border)", borderRadius: 8, overflow: "auto", background: "var(--bg-secondary)", ...(loading ? { display: "flex", alignItems: "center", justifyContent: "center" } : { padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }) }}>
             {loading ? <BaymaxLoader /> : !output ? (
               <span style={{ fontSize: 14, color: "var(--text-faint)" }}>Translation will appear here…</span>
             ) : (<>
@@ -719,11 +736,15 @@ Use the notes array to flag English phrases or patterns that don't translate nat
 // ── Polisher Tab ──────────────────────────────────────────────────
 
 function PolisherTab() {
+  const isMobile = useIsMobile();
   const [tone, setTone]     = useState<ToneId>("internal");
   const [input, setInput]   = useState("");
   const [polished, setPol]  = useState("");
   const [changes, setChg]   = useState("");
   const [loading, setLoading] = useState(false);
+  const minH = isMobile ? 160 : 200;
+  const maxH = isMobile ? 360 : 480;
+  const [inputRef] = useAutoGrowTextarea(input, minH, maxH);
 
   const polish = async () => {
     if (!input.trim()) return;
@@ -742,7 +763,7 @@ function PolisherTab() {
       <ToneSelector tone={tone} setTone={setTone} />
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Original Japanese</p>
-        <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="日本語の文章をここに貼り付けてください…" style={{ height: 140, fontSize: 15, lineHeight: 1.7 }} />
+        <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="日本語の文章をここに貼り付けてください…" style={{ minHeight: minH, maxHeight: maxH, resize: "none", overflow: "auto", fontSize: 15, lineHeight: 1.7 }} />
       </div>
       <button onClick={polish} disabled={loading || !input.trim()} style={{ alignSelf: "flex-start", padding: "8px 20px", fontSize: 14, fontWeight: 500 }}>
         {loading ? "Polishing…" : "Polish paragraph"}
