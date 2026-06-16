@@ -737,20 +737,31 @@ Use the notes array to flag English phrases or patterns that don't translate nat
 
 function PolisherTab() {
   const isMobile = useIsMobile();
-  const [tone, setTone]     = useState<ToneId>("internal");
-  const [input, setInput]   = useState("");
-  const [polished, setPol]  = useState("");
-  const [changes, setChg]   = useState("");
-  const [loading, setLoading] = useState(false);
-  const minH = isMobile ? 160 : 200;
-  const maxH = isMobile ? 360 : 480;
-  const [inputRef] = useAutoGrowTextarea(input, minH, maxH);
+  const [tone, setTone]         = useState<ToneId>("internal");
+  const [input, setInput]       = useState("");
+  const [context, setContext]   = useState("");
+  const [contextOpen, setOpen]  = useState(false);
+  const [polished, setPol]      = useState("");
+  const [changes, setChg]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const minH    = isMobile ? 160 : 200;
+  const maxH    = isMobile ? 360 : 480;
+  const ctxMaxH = isMobile ? 220 : 280;
+  const [inputRef]   = useAutoGrowTextarea(input,   minH, maxH);
+  const [contextRef] = useAutoGrowTextarea(context, 80,   ctxMaxH);
 
   const polish = async () => {
     if (!input.trim()) return;
     setLoading(true); setPol(""); setChg("");
     try {
-      const raw = await callAPI(polishSystemPrompt(tone), input);
+      const hasContext = context.trim().length > 0;
+      const sys = hasContext
+        ? polishSystemPrompt(tone) + `\n\nThe text to polish may follow prior conversation provided as context. Match its tone, terminology choices, and formality where appropriate. When you make context-driven adjustments, call them out in the changes list (e.g. "Matched brief tone from prior message" or "Kept client's term テスト環境 for consistency").`
+        : polishSystemPrompt(tone);
+      const msg = hasContext
+        ? `Prior context (DO NOT polish this — reference only):\n---\n${context.trim()}\n---\n\nText to polish:\n${input}`
+        : input;
+      const raw = await callAPI(sys, msg);
       const p = JSON.parse(raw.replace(/```json\n?|```\n?/g, "").trim());
       setPol(p.polished || "");
       setChg(Array.isArray(p.changes) ? p.changes.join("\n") : String(p.changes || ""));
@@ -758,9 +769,52 @@ function PolisherTab() {
     setLoading(false);
   };
 
+  const clearContext = () => { setContext(""); setOpen(false); };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <ToneSelector tone={tone} setTone={setTone} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {!contextOpen ? (
+          <button
+            onClick={() => setOpen(true)}
+            style={{
+              alignSelf: "flex-start",
+              fontSize: 13,
+              padding: "6px 14px",
+              color: context.trim() ? "var(--text-primary)" : "var(--text-muted)",
+              borderStyle: context.trim() ? "solid" : "dashed",
+            }}
+          >
+            {context.trim() ? `📎 Context active · ${context.trim().length} chars · Show` : "+ Add context · 文脈を追加"}
+          </button>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Context · 文脈</p>
+              <div style={{ display: "flex", gap: 6 }}>
+                {context && (
+                  <button onClick={clearContext} style={{ fontSize: 11, padding: "3px 10px", color: "var(--remove-color)", borderColor: "var(--remove-border)" }}>
+                    ✕ Clear
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} style={{ fontSize: 11, padding: "3px 10px", color: "var(--text-muted)" }}>
+                  Hide
+                </button>
+              </div>
+            </div>
+            <textarea
+              ref={contextRef}
+              value={context}
+              onChange={e => setContext(e.target.value)}
+              placeholder="Paste the email thread or prior messages…"
+              style={{ minHeight: 80, maxHeight: ctxMaxH, resize: "none", overflow: "auto", fontSize: 14, lineHeight: 1.6, background: "var(--bg-secondary)" }}
+            />
+          </>
+        )}
+      </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Original Japanese</p>
         <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="日本語の文章をここに貼り付けてください…" style={{ minHeight: minH, maxHeight: maxH, resize: "none", overflow: "auto", fontSize: 15, lineHeight: 1.7 }} />

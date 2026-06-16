@@ -98,6 +98,48 @@ A small "Translation notes" section appears below the Japanese output, only when
 **Backburner enhancement — flipped Option D**
 Once v1 is live, consider flipping toggle behaviour: notes shown by default, with a small "Hide notes" link that persists the preference in localStorage. So learners keep them visible, advanced users can opt out for a cleaner view.
 
+### Context-aware tools
+Let users paste an email thread or prior conversation as additional context. Baymax uses that context to inform its existing structured outputs — without becoming a general AI chatbot.
+
+**Core principle**
+> Context goes IN. Structured Baymax output comes OUT. The output schema never collapses into freeform.
+
+This is what distinguishes context-aware features from "paste-thing-AI-does-thing." Translation/polishing still returns the same JSON shape; the AI just makes smarter choices because it sees the conversation.
+
+**The three features**
+
+1. **Context-aware Polisher** ✅ *Live*
+   Paste an email thread → polishing matches the tone, terminology, and formality already established. The existing "Changes made" list now references context (e.g. *"Matched brief tone from prior message"*).
+
+2. **Context-aware Translator** — *not yet built*
+   Same pattern: paste a thread + new English/Japanese to translate. The existing translation notes can reference context (e.g. *"(matched) Kept casual since the thread has been informal"*).
+
+3. **Consistency Checker** — *not yet built*
+   New output section. When context is provided, Baymax flags terminology drift between the user's draft and the prior conversation. e.g. *"Client used テスト環境, you wrote 検証環境 — match?"* with inline action buttons.
+
+**Handling the "client used the wrong term" case**
+The checker doesn't enforce, it surfaces and explains:
+- *Suggest matching* — both terms valid, match for consistency
+- *Suggest correcting* — client used an incorrect term; user's term is more accurate
+- *Ambiguous* — both common, no clear anchor → user decides
+
+Anchor sources, in trust order: Verified Phrase Bank → Glossary → general LLM judgement → no anchor.
+
+**UI pattern (already implemented in Polisher)**
+- Expandable "Add context" section between tone selector and main input
+- Collapsed by default → keeps standard flow uncluttered
+- When filled, button shows "📎 Context active · N chars"
+- Auto-grows with content using the existing `useAutoGrowTextarea` hook
+- Context stays in state between polishes within the same tab session
+
+**Chatbot tests — apply before shipping any context feature**
+| Question | Chatbot answer | Baymax answer |
+|---|---|---|
+| Output shape? | Freeform text | Defined JSON / structured fields |
+| User still writes the reply themselves? | No, AI does | Yes, AI assists |
+| Multi-turn back-and-forth? | Yes | No, single turn |
+| Value is in AI intelligence or Baymax's curation/structure? | AI intelligence | Curation/structure |
+
 ### Shared database upgrade
 Replace Google Sheets with Supabase or Firebase if team-wide shared custom phrases are needed in future.
 
